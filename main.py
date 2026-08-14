@@ -65,7 +65,7 @@ def log_spin_to_csv(game_id, result, color, spin_time=None):
 # ==========================================================================
 # 1. CONFIGURATION TELEGRAM
 # ==========================================================================
-TELEGRAM_BOT_TOKEN = "8967747012:AAHX8kgPr7FNw06dQZLTKEUuytNfgb-36I8"
+TELEGRAM_BOT_TOKEN = "8127054128:AAG0iG4KBa0Lz_7azdJvlYYiChISzkLwoH8"
 TELEGRAM_CHAT_ID = "6098394153"
 
 def send_telegram_alert(message: str):
