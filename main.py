@@ -65,7 +65,7 @@ def log_spin_to_csv(game_id, result, color, spin_time=None):
 # ==========================================================================
 # 1. CONFIGURATION TELEGRAM
 # ==========================================================================
-TELEGRAM_BOT_TOKEN = "8127054128:AAG0iG4KBa0Lz_7azdJvlYYiChISzkLwoH8"
+TELEGRAM_BOT_TOKEN = "8967747012:AAHX8kgPr7FNw06dQZLTKEUuytNfgb-36I8"
 TELEGRAM_CHAT_ID = "6098394153"
 
 def send_telegram_alert(message: str):
@@ -168,6 +168,17 @@ class LiveSignalEngine:
             else:
                 self.streak_parity = 1
 
+            # 🔔 ALERTE PRÉCOCE : se déclenche dès que le streak atteint 10
+            # (chaos_threshold - 1), une ligne avant le vrai signal à 11.
+            # Purement informative — aucune mise n'est engagée ici.
+            if self.streak_parity == self.chaos_threshold - 1:
+                label = "ODD" if c_par == 1 else "EVEN"
+                events.append(
+                    f"⏳ <b>ALERTE PRÉCOCE</b> — {label} approche du seuil "
+                    f"({self.streak_parity}/{self.chaos_threshold}). Prépare-toi, "
+                    f"le signal peut se déclencher au prochain spin."
+                )
+
             if self.streak_parity >= self.chaos_threshold:
                 self.target_parity = 1 if c_par == 2 else 2  # parité opposée
                 self.is_betting = True
@@ -200,7 +211,7 @@ class LiveSignalEngine:
         if actual_parity == self.target_parity:
             net_gain = bet_amount * 2
             self.capital += net_gain
-            profit = net_gain - self.current_sequence_loss
+            profit = net_gain - (self.current_sequence_loss + bet_amount)
 
             self.wins_in_current_signal += 1
             events.append(
@@ -253,7 +264,7 @@ class LiveSignalEngine:
 # ==========================================================================
 engine = LiveSignalEngine(
     initial_capital=1000,
-    chaos_threshold=3,
+    chaos_threshold=11,
     target_wins=1,
     bet_ladder=(25, 50, 75, 100),
 )
