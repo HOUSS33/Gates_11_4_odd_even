@@ -14,6 +14,19 @@ signal remplacé par la logique ODD/EVEN "streak de répétition" (PAS chaos) :
 - Deux 0 consécutifs (en phase de guet uniquement) réinitialisent le streak.
 - Un signal ne se déclenche JAMAIS sur un 0.
 - Bust = perte des 4 paliers d'affilée -> recharge automatique du capital.
+
+--- FIX (cf. logs du 2026-08-18) ---
+`on_open` est appelé par websocket-client à CHAQUE connexion réussie, y
+compris les reconnexions automatiques après une simple coupure réseau
+(WebSocketConnectionClosedException). Ce n'est PAS lié à un redémarrage
+du process ni à un redéploiement/déplacement de conteneur par Railway :
+tant que le process Python tourne, `engine` et `telegram_gate` gardent
+leur état en mémoire, seul le socket a été recréé.
+Avant le fix, le message "🎲 Bot ODD/EVEN démarré..." partait donc sur
+Telegram à chaque reconnexion, pas seulement au vrai démarrage.
+Le fix : un flag global `_bot_started_announced` garantit que ce message
+n'est envoyé qu'une seule fois par vie du process ; les reconnexions
+suivantes ne loggent qu'en console.
 ========================================================================================
 """
 
@@ -310,6 +323,10 @@ last_game_id = load_last_game_id_from_csv()
 if last_game_id:
     print(f"[Rattrapage] Dernier gameId connu au démarrage : {last_game_id}")
 
+# Garantit que le message "Bot démarré" n'est envoyé qu'une seule fois par
+# vie du process, même si on_open() est rappelé à chaque reconnexion WS.
+_bot_started_announced = False
+
 
 def handle_new_result(number, table_id):
     t0 = time.time()
@@ -387,12 +404,19 @@ def on_close(ws, close_status_code, close_msg):
 
 
 def on_open(ws):
+    global _bot_started_announced
+
     print("[WS] Connexion établie.")
-    send_telegram_alert(
-        f"🎲 Bot ODD/EVEN démarré (WebSocket). Capital : {engine.initial_capital} DHS, "
-        f"seuil : {engine.chaos_threshold}, paliers : {engine.bet_ladder}.\n"
-        f"Telegram : silencieux jusqu'au prochain BUST, puis relaie les 2 signaux suivants."
-    )
+
+    if not _bot_started_announced:
+        send_telegram_alert(
+            f"🎲 Bot ODD/EVEN démarré (WebSocket). Capital : {engine.initial_capital} DHS, "
+            f"seuil : {engine.chaos_threshold}, paliers : {engine.bet_ladder}.\n"
+            f"Telegram : silencieux jusqu'au prochain BUST, puis relaie les 2 signaux suivants."
+        )
+        _bot_started_announced = True
+    else:
+        print("[WS] Reconnexion silencieuse (pas de message Telegram — process toujours en vie).")
 
     msg1 = json.dumps({"type": "available", "casinoId": CASINO_ID})
     ws.send(msg1)
