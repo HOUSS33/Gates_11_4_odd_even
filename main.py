@@ -27,6 +27,12 @@ Telegram à chaque reconnexion, pas seulement au vrai démarrage.
 Le fix : un flag global `_bot_started_announced` garantit que ce message
 n'est envoyé qu'une seule fois par vie du process ; les reconnexions
 suivantes ne loggent qu'en console.
+
+--- FILTRE TELEGRAM RETIRÉ ---
+Le TelegramGate (qui ne relayait que les 2 signaux suivant un BUST) a été
+supprimé. Tous les événements (⏳ alerte précoce, ⚡ signal, 🟢 gain,
+🔴 perte de palier, ✅/🚨 fin de séquence) sont désormais envoyés sur
+Telegram sans filtrage.
 ========================================================================================
 """
 
@@ -88,43 +94,6 @@ def send_telegram_alert(message: str):
         requests.post(url, json=payload, timeout=5)
     except Exception as e:
         print(f"[Telegram] Erreur d'envoi : {e}")
-
-
-# ==========================================================================
-# 1bis. FILTRE TELEGRAM : ne relaie que les 2 signaux suivant un BUST
-# ==========================================================================
-class TelegramGate:
-    """
-    - Un message 🚨 (bust OU fin de séquence par épuisement des 4 vies) est
-      TOUJOURS relayé vers Telegram, et arme les DEUX prochains signaux
-      complets (⚡ ... jusqu'à leur ✅/🚨 de fin) pour relais intégral.
-    - Tant que 'signals_to_relay' > 0, TOUT (⏳ alerte précoce, ⚡ signal,
-      🟢 gain, ✅/🚨 fin) est relayé.
-    - Dès que le 2e signal armé se termine, le compteur retombe à 0 et le
-      bot redevient silencieux sur Telegram jusqu'au prochain 🚨.
-    - Avant le tout premier bust de la session : silence total sur Telegram
-      (à part le message de démarrage du bot).
-    """
-    def __init__(self):
-        self.signals_to_relay = 0
-
-    def should_relay(self, msg: str) -> bool:
-        is_bust = msg.startswith("🚨")
-        is_completion = msg.startswith("✅") or is_bust
-
-        if is_bust:
-            self.signals_to_relay = 2
-            return True
-
-        if self.signals_to_relay > 0:
-            if is_completion:
-                self.signals_to_relay -= 1
-            return True
-
-        return False
-
-
-telegram_gate = TelegramGate()
 
 
 # ==========================================================================
@@ -334,9 +303,8 @@ def handle_new_result(number, table_id):
     events = engine.process_spin(number)
     t1 = time.time()
     for msg in events:
-        print(msg)  # toujours visible en console/logs, peu importe Telegram
-        if telegram_gate.should_relay(msg):
-            send_telegram_alert(msg)
+        print(msg)
+        send_telegram_alert(msg)  # tout est relayé sur Telegram, sans filtre
     t2 = time.time()
     print(f"[TIMING] engine={t1-t0:.3f}s | telegram={t2-t1:.3f}s | total={t2-t0:.3f}s")
 
